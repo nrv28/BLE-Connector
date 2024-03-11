@@ -2,10 +2,9 @@ package com.example.ble
 
 import android.bluetooth.BluetoothDevice
 import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
-import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.example.ble.databinding.ItemDeviceBinding
 
 class DeviceListAdapter(private val onItemClick: (BluetoothDevice) -> Unit) : RecyclerView.Adapter<DeviceListAdapter.ViewHolder>() {
 
@@ -19,9 +18,8 @@ class DeviceListAdapter(private val onItemClick: (BluetoothDevice) -> Unit) : Re
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val view = LayoutInflater.from(parent.context)
-            .inflate(android.R.layout.simple_list_item_1, parent, false)
-        return ViewHolder(view)
+        val binding = ItemDeviceBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        return ViewHolder(binding)
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
@@ -31,12 +29,10 @@ class DeviceListAdapter(private val onItemClick: (BluetoothDevice) -> Unit) : Re
 
     override fun getItemCount(): Int = deviceList.size
 
-    inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        private val deviceName: TextView = itemView.findViewById(android.R.id.text1)
-
+    inner class ViewHolder(private val binding: ItemDeviceBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(device: BluetoothDevice) {
-            deviceName.text = device.name ?: "Unknown device"
-            itemView.setOnClickListener {
+            binding.deviceNameTextView.text = device.name ?: "Unknown device"
+            binding.root.setOnClickListener {
                 onItemClick(device)
             }
         }

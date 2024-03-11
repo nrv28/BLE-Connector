@@ -9,55 +9,71 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
+import com.example.ble.databinding.ActivityScanBinding
 
 class ScanActivity : AppCompatActivity() {
 
+    private lateinit var binding: ActivityScanBinding
     private lateinit var bluetoothAdapter: BluetoothAdapter
     private lateinit var deviceListAdapter: DeviceListAdapter
-    private lateinit var recyclerView: RecyclerView
 
     private var scanning = false
     private val scanPeriod = 10000L // Scan for 10 seconds
-
     private val handler = Handler(Looper.getMainLooper())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_scan)
+        binding = ActivityScanBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
         // Initialize Bluetooth adapter
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
 
         // Initialize RecyclerView and adapter
-        recyclerView = findViewById(R.id.recyclerView)
         deviceListAdapter = DeviceListAdapter { device -> connectToDevice(device) }
-        recyclerView.adapter = deviceListAdapter
-        recyclerView.layoutManager = LinearLayoutManager(this)
+        binding.recyclerView.adapter = deviceListAdapter
+        binding.recyclerView.layoutManager = LinearLayoutManager(this)
 
-        // Start scanning for devices
-        startScan()
+        // Set click listeners for start and stop scan buttons
+        binding.btnStartScan.setOnClickListener {
+            startScan()
+        }
+
+        binding.btnStopScan.setOnClickListener {
+            stopScan()
+        }
     }
 
     private fun startScan() {
-        scanning = true
-        bluetoothAdapter.bluetoothLeScanner.startScan(scanCallback)
-        handler.postDelayed({
-            stopScan()
-        }, scanPeriod)
+        if (!scanning) {
+            scanning = true
+            bluetoothAdapter.bluetoothLeScanner.startScan(scanCallback)
+            handler.postDelayed({
+                stopScan()
+            }, scanPeriod)
+            Toast.makeText(this, "Scanning started", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(this, "Scanning is already in progress", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun stopScan() {
-        scanning = false
-        bluetoothAdapter.bluetoothLeScanner.stopScan(scanCallback)
+        if (scanning) {
+            scanning = false
+            bluetoothAdapter.bluetoothLeScanner.stopScan(scanCallback)
+            Toast.makeText(this, "Scanning stopped", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(this, "No ongoing scanning to stop", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
             result?.let { scanResult ->
-                val device: BluetoothDevice = scanResult.device
+                val device = scanResult.device
                 deviceListAdapter.addDevice(device)
                 deviceListAdapter.notifyDataSetChanged()
             }
@@ -69,10 +85,7 @@ class ScanActivity : AppCompatActivity() {
     }
 
     private fun connectToDevice(device: BluetoothDevice) {
-        // Stop scanning when connecting to a device
         stopScan()
-
-        // Start DeviceControlActivity and pass device address
         val intent = Intent(this, DeviceControlActivity::class.java)
         intent.putExtra("device_address", device.address)
         startActivity(intent)
@@ -80,9 +93,7 @@ class ScanActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        if (scanning) {
-            stopScan()
-        }
+        stopScan()
     }
 
     companion object {

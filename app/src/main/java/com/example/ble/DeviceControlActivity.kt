@@ -3,8 +3,8 @@ package com.example.ble
 import android.bluetooth.*
 import android.os.Bundle
 import android.util.Log
-import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import com.example.ble.databinding.ActivityDeviceControlBinding
 import java.util.UUID
 
 class DeviceControlActivity : AppCompatActivity() {
@@ -12,12 +12,12 @@ class DeviceControlActivity : AppCompatActivity() {
     private lateinit var bluetoothGatt: BluetoothGatt
     private lateinit var deviceAddress: String
 
-    private lateinit var statusTextView: TextView
-    private lateinit var terminalTextView: TextView
+    private lateinit var binding: ActivityDeviceControlBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_device_control)
+        binding = ActivityDeviceControlBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
         deviceAddress = intent.getStringExtra("device_address") ?: ""
         if (deviceAddress.isEmpty()) {
@@ -25,9 +25,6 @@ class DeviceControlActivity : AppCompatActivity() {
             finish()
             return
         }
-
-        statusTextView = findViewById(R.id.status_text_view)
-        terminalTextView = findViewById(R.id.terminal_text_view)
 
         connectToDevice()
     }
@@ -85,11 +82,11 @@ class DeviceControlActivity : AppCompatActivity() {
     }
 
     private fun updateStatus(status: String) {
-        statusTextView.text = status
+        binding.statusTextView.text = status
     }
 
     private fun updateTerminal(data: String) {
-        terminalTextView.append(data + "\n")
+        binding.terminalTextView.append(data + "\n")
     }
 
     private fun enableNotifications() {
