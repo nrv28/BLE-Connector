@@ -27,7 +27,7 @@ class BluetoothLeService : Service() {
 
     private lateinit var bluetoothGatt: BluetoothGatt
 
-    override fun onBind(intent: Intent?): IBinder? {
+    override fun onBind(intent: Intent?): IBinder {
         return LocalBinder()
     }
 

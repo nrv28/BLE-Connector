@@ -9,10 +9,10 @@ import java.util.UUID
 
 class DeviceControlActivity : AppCompatActivity() {
 
+    private lateinit var binding: ActivityDeviceControlBinding
     private lateinit var bluetoothGatt: BluetoothGatt
     private lateinit var deviceAddress: String
 
-    private lateinit var binding: ActivityDeviceControlBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,7 +43,6 @@ class DeviceControlActivity : AppCompatActivity() {
                     BluetoothProfile.STATE_CONNECTING -> updateStatus("Connecting...")
                     BluetoothProfile.STATE_CONNECTED -> {
                         updateStatus("Connected")
-                        // Discover services when connected
                         bluetoothGatt.discoverServices()
                     }
                     BluetoothProfile.STATE_DISCONNECTED -> updateStatus("Connection lost")
@@ -57,7 +56,6 @@ class DeviceControlActivity : AppCompatActivity() {
                 when (status) {
                     BluetoothGatt.GATT_SUCCESS -> {
                         updateStatus("Services discovered")
-                        // Enable notifications on the characteristic you want to receive data from
                         enableNotifications()
                     }
                     else -> {
