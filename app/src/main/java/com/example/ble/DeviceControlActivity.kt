@@ -1,17 +1,98 @@
 package com.example.ble
 
-import android.bluetooth.*
+import android.content.BroadcastReceiver
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.ServiceConnection
 import android.os.Bundle
+import android.os.IBinder
 import android.util.Log
+import android.view.MenuItem
 import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.example.ble.adapters.TerminalAdapter
 import com.example.ble.databinding.ActivityDeviceControlBinding
-import java.util.UUID
+import com.example.ble.models.TerminalData
+import com.example.ble.services.BluetoothLeService
 
 class DeviceControlActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityDeviceControlBinding
-    private lateinit var bluetoothGatt: BluetoothGatt
     private lateinit var deviceAddress: String
+    private lateinit var terminalAdapter: TerminalAdapter
+    private val terminalDataList = mutableListOf<TerminalData>()
+
+    //new code
+    private var bluetoothService : BluetoothLeService? = null
+
+    // Code to manage Service lifecycle.
+    private val serviceConnection: ServiceConnection = object : ServiceConnection {
+        override fun onServiceConnected(
+            componentName: ComponentName,
+            service: IBinder
+        ) {
+            bluetoothService = (service as BluetoothLeService.LocalBinder).getService()
+            bluetoothService?.let { bluetooth ->
+                // call functions on service to check connection and connect to devices
+                if (!bluetooth.initialize()) {
+                    Log.e(TAG, "Unable to initialize Bluetooth")
+                    finish()
+                }
+                // perform device connection
+                bluetooth.connect(deviceAddress)
+            }
+        }
+
+        override fun onServiceDisconnected(componentName: ComponentName) {
+            bluetoothService = null
+        }
+    }
+
+    private val gattUpdateReceiver: BroadcastReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                BluetoothLeService.ACTION_GATT_CONNECTED -> {
+                      updateStatus("Connected")
+                }
+                BluetoothLeService.ACTION_GATT_DISCONNECTED -> {
+                    updateStatus("Disconnected")
+                }
+                BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED -> {
+                    updateStatus("Services Discovered")
+                }
+                BluetoothLeService.ACTION_DATA_AVAILABLE ->{
+                    val data = intent.getByteArrayExtra(BluetoothLeService.EXTRA_DATA)
+                    data?.let { updateTerminal(data) }
+                }
+            }
+        }
+    }
+
+
+    override fun onResume() {
+        super.onResume()
+        registerReceiver(gattUpdateReceiver, makeGattUpdateIntentFilter())
+        if (bluetoothService != null) {
+            val result = bluetoothService!!.connect(deviceAddress)
+            Log.d(TAG, "Connect request result=$result")
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        unregisterReceiver(gattUpdateReceiver)
+    }
+
+    private fun makeGattUpdateIntentFilter(): IntentFilter {
+        return IntentFilter().apply {
+            addAction(BluetoothLeService.ACTION_GATT_CONNECTED)
+            addAction(BluetoothLeService.ACTION_GATT_DISCONNECTED)
+            addAction(BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED)
+            addAction(BluetoothLeService.ACTION_DATA_AVAILABLE)
+        }
+    }
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -19,89 +100,54 @@ class DeviceControlActivity : AppCompatActivity() {
         binding = ActivityDeviceControlBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        deviceAddress = intent.getStringExtra("device_address") ?: ""
-        if (deviceAddress.isEmpty()) {
-            Log.e(TAG, "Device address not found")
-            finish()
-            return
+        val gattServiceIntent = Intent(this, BluetoothLeService::class.java)
+        bindService(gattServiceIntent, serviceConnection, Context.BIND_AUTO_CREATE)
+
+
+        //new code
+        setSupportActionBar(binding.toolbar)
+        supportActionBar?.apply {
+            title = "Terminal"
+            setDisplayHomeAsUpEnabled(true)
+            setHomeAsUpIndicator(R.drawable.baseline_keyboard_backspace_24)
         }
 
-        connectToDevice()
+        deviceAddress = intent.getStringExtra("device_address").toString()
+
+        setupRecyclerView()
     }
 
-    private fun connectToDevice() {
-        val bluetoothManager = getSystemService(BLUETOOTH_SERVICE) as BluetoothManager
-        val bluetoothAdapter = bluetoothManager.adapter
-        val device = bluetoothAdapter.getRemoteDevice(deviceAddress)
-        bluetoothGatt = device.connectGatt(this, false, gattCallback)
-    }
-
-    private val gattCallback = object : BluetoothGattCallback() {
-        override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
-            runOnUiThread {
-                when (newState) {
-                    BluetoothProfile.STATE_CONNECTING -> updateStatus("Connecting...")
-                    BluetoothProfile.STATE_CONNECTED -> {
-                        updateStatus("Connected")
-                        bluetoothGatt.discoverServices()
-                    }
-                    BluetoothProfile.STATE_DISCONNECTED -> updateStatus("Connection lost")
-                    else -> Log.i(TAG, "Connection state changed: $newState")
-                }
-            }
-        }
-
-        override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
-            runOnUiThread {
-                when (status) {
-                    BluetoothGatt.GATT_SUCCESS -> {
-                        updateStatus("Services discovered")
-                        enableNotifications()
-                    }
-                    else -> {
-                        updateStatus("Service discovery failed")
-                        Log.e(TAG, "Service discovery failed with status: $status")
-                    }
-                }
-            }
-        }
-
-        override fun onCharacteristicChanged(
-            gatt: BluetoothGatt?,
-            characteristic: BluetoothGattCharacteristic?
-        ) {
-            runOnUiThread {
-                characteristic?.let { char ->
-                    val data = char.value.decodeToString()
-                    updateTerminal(data)
-                }
-            }
+    private fun setupRecyclerView() {
+        terminalAdapter = TerminalAdapter(terminalDataList)
+        binding.terminalRecyclerView.apply {
+            adapter = terminalAdapter
+            layoutManager = LinearLayoutManager(this@DeviceControlActivity)
         }
     }
+
 
     private fun updateStatus(status: String) {
         binding.statusTextView.text = status
     }
 
-    private fun updateTerminal(data: String) {
-        binding.terminalTextView.append(data + "\n")
+    private fun updateTerminal(data: ByteArray) {
+        val receivedString = data.toString(Charsets.UTF_8)
+        terminalAdapter.addMessage(receivedString)
+        binding.terminalRecyclerView.scrollToPosition(terminalDataList.size - 1)
     }
 
-    private fun enableNotifications() {
-        val service = bluetoothGatt.getService(SERVICE_UUID)
-        val characteristic = service?.getCharacteristic(CHARACTERISTIC_UUID)
-        characteristic?.let {
-            bluetoothGatt.setCharacteristicNotification(it, true)
-            val descriptor = it.getDescriptor(CLIENT_CHARACTERISTIC_CONFIG_UUID)
-            descriptor?.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-            bluetoothGatt.writeDescriptor(descriptor)
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            android.R.id.home -> {
+                finish()
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
         }
     }
 
     companion object {
         private const val TAG = "DeviceControlActivity"
-        private val SERVICE_UUID = UUID.fromString("0000FFE0-0000-1000-8000-00805F9B34FB")
-        private val CHARACTERISTIC_UUID = UUID.fromString("0000FFE1-0000-1000-8000-00805F9B34FB")
-        private val CLIENT_CHARACTERISTIC_CONFIG_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
     }
 }

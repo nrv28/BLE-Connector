@@ -1,4 +1,4 @@
-package com.example.ble
+package com.example.ble.adapters
 
 import android.bluetooth.BluetoothDevice
 import android.view.LayoutInflater
@@ -9,6 +9,7 @@ import com.example.ble.databinding.ItemDeviceBinding
 class DeviceListAdapter(private val onItemClick: (BluetoothDevice) -> Unit) : RecyclerView.Adapter<DeviceListAdapter.ViewHolder>() {
 
     private val deviceList = mutableListOf<BluetoothDevice>()
+
 
     fun addDevice(device: BluetoothDevice) {
         if (!deviceList.contains(device)) {

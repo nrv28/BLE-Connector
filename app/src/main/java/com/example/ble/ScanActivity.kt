@@ -1,9 +1,11 @@
 package com.example.ble
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.le.BluetoothLeScanner
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.content.Intent
@@ -11,23 +13,25 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.example.ble.adapters.DeviceListAdapter
 import com.example.ble.databinding.ActivityScanBinding
 
 class ScanActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityScanBinding
     private lateinit var bluetoothAdapter: BluetoothAdapter
+    private lateinit var bluetoothLeScanner: BluetoothLeScanner
     private lateinit var deviceListAdapter: DeviceListAdapter
 
     private var scanning = false
-    private val scanPeriod = 10000L
     private val handler = Handler(Looper.getMainLooper())
+
+    private val SCAN_PERIOD: Long = 10000
 
     private val bluetoothEnableRequestCode = 1001
     private val locationPermissionRequestCode = 1002
@@ -39,6 +43,7 @@ class ScanActivity : AppCompatActivity() {
 
         // Initialize Bluetooth adapter
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+        bluetoothLeScanner = bluetoothAdapter.bluetoothLeScanner
 
         // Initialize RecyclerView and adapter
         deviceListAdapter = DeviceListAdapter { device -> connectToDevice(device) }
@@ -53,10 +58,6 @@ class ScanActivity : AppCompatActivity() {
                 requestLocationPermission()
             }
         }
-
-        binding.btnStopScan.setOnClickListener {
-            stopScan()
-        }
     }
 
     private fun hasLocationPermission(): Boolean {
@@ -66,7 +67,10 @@ class ScanActivity : AppCompatActivity() {
     private fun requestLocationPermission() {
         ActivityCompat.requestPermissions(
             this,
-            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+            arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            ),
             locationPermissionRequestCode
         )
     }
@@ -82,6 +86,7 @@ class ScanActivity : AppCompatActivity() {
         }
     }
 
+    @SuppressLint("MissingPermission")
     private fun startScan() {
         if (!scanning) {
             if (!bluetoothAdapter.isEnabled) {
@@ -90,18 +95,24 @@ class ScanActivity : AppCompatActivity() {
                 startActivityForResult(enableBtIntent, bluetoothEnableRequestCode)
             } else {
                 // Bluetooth is enabled, start scanning
-                scanning = true
-                bluetoothAdapter.bluetoothLeScanner.startScan(scanCallback)
                 handler.postDelayed({
-                    stopScan()
-                }, scanPeriod)
-                Toast.makeText(this, "Scanning started", Toast.LENGTH_SHORT).show()
+                    scanning = false
+                    bluetoothLeScanner.stopScan(leScanCallback)
+                    binding.btnStartScan.text = "Start Scan"
+                    binding.btnStartScan.background = ContextCompat.getDrawable(this, R.drawable.start)
+                }, SCAN_PERIOD)
+                scanning = true
+                bluetoothLeScanner.startScan(leScanCallback)
+                binding.btnStartScan.text = "Stop Scan"
+                binding.btnStartScan.background = ContextCompat.getDrawable(this, R.drawable.stop)
             }
         } else {
-            Toast.makeText(this, "Scanning is already in progress", Toast.LENGTH_SHORT).show()
+            scanning = false
+            bluetoothLeScanner.stopScan(leScanCallback)
+            binding.btnStartScan.text = "Start Scan"
+            binding.btnStartScan.background = ContextCompat.getDrawable(this, R.drawable.start)
         }
     }
-
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
@@ -116,51 +127,30 @@ class ScanActivity : AppCompatActivity() {
         }
     }
 
-
-
-    private fun stopScan() {
-        if (scanning) {
-            scanning = false
-            bluetoothAdapter.bluetoothLeScanner.stopScan(scanCallback)
-            Toast.makeText(this, "Scanning stopped", Toast.LENGTH_SHORT).show()
-        } else {
-            Toast.makeText(this, "No ongoing scanning to stop", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private val scanCallback = object : ScanCallback() {
+    private val leScanCallback = object : ScanCallback() {
+        @SuppressLint("MissingPermission")
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
             result?.let { scanResult ->
                 val device = scanResult.device
-                deviceListAdapter.addDevice(device)
-                deviceListAdapter.notifyDataSetChanged()
+                if(device.name != null) {
+                    deviceListAdapter.addDevice(device)
+                    deviceListAdapter.notifyDataSetChanged()
+                }
             }
-        }
-
-        override fun onScanFailed(errorCode: Int) {
-            Log.e(TAG, "Scan failed with error code $errorCode")
         }
     }
 
+    @SuppressLint("MissingPermission")
     private fun connectToDevice(device: BluetoothDevice) {
         if (scanning) {
             scanning = false
-            bluetoothAdapter.bluetoothLeScanner.stopScan(scanCallback)
+            bluetoothLeScanner.stopScan(leScanCallback)
+            binding.btnStartScan.text = "Start Scan"
+            binding.btnStartScan.background = ContextCompat.getDrawable(this, R.drawable.start)
         }
         val intent = Intent(this, DeviceControlActivity::class.java)
         intent.putExtra("device_address", device.address)
         startActivity(intent)
     }
 
-    override fun onStop() {
-        super.onStop()
-        if (scanning) {
-            scanning = false
-            bluetoothAdapter.bluetoothLeScanner.stopScan(scanCallback)
-        }
-    }
-
-    companion object {
-        private const val TAG = "ScanActivity"
-    }
 }
