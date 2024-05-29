@@ -19,7 +19,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         android:paddingStart="16dp"
-        app:title="Bluetooth Low Energy (BLE)"
+        app:title="BLE Connector"
         app:titleTextColor="@android:color/white" />
 
 

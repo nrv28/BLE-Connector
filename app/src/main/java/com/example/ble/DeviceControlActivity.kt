@@ -1,5 +1,6 @@
 package com.example.ble
 
+import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
@@ -16,6 +17,7 @@ import com.example.ble.adapters.TerminalAdapter
 import com.example.ble.databinding.ActivityDeviceControlBinding
 import com.example.ble.models.TerminalData
 import com.example.ble.services.BluetoothLeService
+import com.google.firebase.firestore.FirebaseFirestore
 
 class DeviceControlActivity : AppCompatActivity() {
 
@@ -23,8 +25,6 @@ class DeviceControlActivity : AppCompatActivity() {
     private lateinit var deviceAddress: String
     private lateinit var terminalAdapter: TerminalAdapter
     private val terminalDataList = mutableListOf<TerminalData>()
-
-    //new code
     private var bluetoothService : BluetoothLeService? = null
 
     // Code to manage Service lifecycle.
@@ -70,7 +70,6 @@ class DeviceControlActivity : AppCompatActivity() {
         }
     }
 
-
     override fun onResume() {
         super.onResume()
         registerReceiver(gattUpdateReceiver, makeGattUpdateIntentFilter())
@@ -94,7 +93,6 @@ class DeviceControlActivity : AppCompatActivity() {
         }
     }
 
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityDeviceControlBinding.inflate(layoutInflater)
@@ -103,8 +101,6 @@ class DeviceControlActivity : AppCompatActivity() {
         val gattServiceIntent = Intent(this, BluetoothLeService::class.java)
         bindService(gattServiceIntent, serviceConnection, Context.BIND_AUTO_CREATE)
 
-
-        //new code
         setSupportActionBar(binding.toolbar)
         supportActionBar?.apply {
             title = "Terminal"
@@ -125,6 +121,45 @@ class DeviceControlActivity : AppCompatActivity() {
         }
     }
 
+    @SuppressLint("CheckResult")
+    private fun storeGPSData(gpsData: String) {
+
+        val userId = "currentUser"
+
+            val firestore = FirebaseFirestore.getInstance()
+            val userDocRef = firestore.collection("users").document(userId)
+            val gpsDocRef = firestore.collection("gps").document(userId)
+
+            val latitude = gpsData.substring(2, 11).toDouble()
+            val longitude = gpsData.substring(11, 20).toDouble()
+            val gpsName = gpsData.substring(0, 2)
+
+
+            val locationDataMap = hashMapOf(
+                "longitude" to longitude,
+                "latitude" to latitude,
+                "timestamp" to System.currentTimeMillis()
+            )
+
+            gpsDocRef.collection("gpsNames").document()
+                .set(hashMapOf("name" to gpsName))
+                .addOnSuccessListener {
+                    Log.d(TAG, "GPS name $gpsName stored successfully")
+                }
+                .addOnFailureListener { e ->
+                    Log.e(TAG, "Error adding GPS name", e)
+                }
+
+            userDocRef.collection("gpsData").document(gpsName).collection("locations")
+                .add(locationDataMap)
+                .addOnSuccessListener { documentReference ->
+                    Log.d(TAG, "Location data added with ID: ${documentReference.id}")
+                }
+                .addOnFailureListener { e ->
+                    Log.e(TAG, "Error adding location data", e)
+                }
+    }
+
 
     private fun updateStatus(status: String) {
         binding.statusTextView.text = status
@@ -133,6 +168,7 @@ class DeviceControlActivity : AppCompatActivity() {
     private fun updateTerminal(data: ByteArray) {
         val receivedString = data.toString(Charsets.UTF_8)
         terminalAdapter.addMessage(receivedString)
+        storeGPSData(receivedString)
         binding.terminalRecyclerView.scrollToPosition(terminalDataList.size - 1)
     }
 

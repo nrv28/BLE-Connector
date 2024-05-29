@@ -1,16 +1,26 @@
 package com.example.ble.services
 
+import android.annotation.SuppressLint
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.Service
 import android.bluetooth.*
 import android.content.Intent
 import android.os.Binder
+import android.os.Build
 import android.os.IBinder
 import android.util.Log
+import androidx.core.app.NotificationCompat
+import com.example.ble.R
 import java.util.UUID
 
 private const val TAG = "BluetoothLeService"
 private val SERVICE_UUID = UUID.fromString("0000FFE0-0000-1000-8000-00805F9B34FB")
 private val CHARACTERISTIC_UUID = UUID.fromString("0000FFE1-0000-1000-8000-00805F9B34FB")
+private const val FOREGROUND_SERVICE_NOTIFICATION_ID=1
+private const val CHANNEL_NAME = "Bluetooth LE Service Channel"
+private const val CHANNEL_ID = "BluetoothLeServiceChannel"
 
 class BluetoothLeService : Service() {
 
@@ -22,6 +32,11 @@ class BluetoothLeService : Service() {
 
     override fun onBind(intent: Intent): IBinder {
         return binder
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        createNotificationChannel()
     }
 
     inner class LocalBinder : Binder() {
@@ -39,6 +54,7 @@ class BluetoothLeService : Service() {
         return true
     }
 
+    @SuppressLint("MissingPermission")
     fun connect(address: String): Boolean {
         bluetoothAdapter?.let { adapter ->
             try {
@@ -56,13 +72,17 @@ class BluetoothLeService : Service() {
     }
 
     private val bluetoothGattCallback = object : BluetoothGattCallback() {
+        @SuppressLint("MissingPermission")
         override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 connectionState = STATE_CONNECTED
+                val notification = createNotification()
+                startForeground(FOREGROUND_SERVICE_NOTIFICATION_ID, notification)
                 broadcastUpdate(ACTION_GATT_CONNECTED)
                 bluetoothGatt?.discoverServices()
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 connectionState = STATE_DISCONNECTED
+                stopForeground(true)
                 broadcastUpdate(ACTION_GATT_DISCONNECTED)
             }
         }
@@ -83,6 +103,32 @@ class BluetoothLeService : Service() {
         }
     }
 
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                CHANNEL_NAME,
+                NotificationManager.IMPORTANCE_DEFAULT
+            )
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun createNotification(): Notification {
+        // Build your notification here
+        val notificationBuilder = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("BLE Connector")
+            .setContentText("Connected")
+            .setSmallIcon(R.drawable.bluetooth)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .build()
+
+        return notificationBuilder
+    }
+
+
+    @SuppressLint("MissingPermission")
     private fun enableNotifications(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
         gatt.setCharacteristicNotification(characteristic, true)
         characteristic.descriptors.forEach { descriptor ->
@@ -107,6 +153,7 @@ class BluetoothLeService : Service() {
         return super.onUnbind(intent)
     }
 
+    @SuppressLint("MissingPermission")
     private fun close() {
         bluetoothGatt?.let { gatt ->
             gatt.close()
