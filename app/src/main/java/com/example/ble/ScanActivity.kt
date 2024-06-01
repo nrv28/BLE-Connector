@@ -56,22 +56,23 @@ class ScanActivity : AppCompatActivity() {
         binding.recyclerView.adapter = deviceListAdapter
         binding.recyclerView.layoutManager = LinearLayoutManager(this)
 
-        // Set click listeners for start and stop scan buttons
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.S){
-            if(hasLocationPermission()){
-                if(hasNearbyDevicesPermission()){
-                    startScan()
+        binding.btnStartScan.setOnClickListener {
+            if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.S){
+                if(hasLocationPermission()){
+                    if(hasNearbyDevicesPermission()){
+                        startScan()
+                    }else{
+                        requestNearbyDevicesPermission()
+                    }
                 }else{
-                    requestNearbyDevicesPermission()
+                    requestLocationPermission()
                 }
-            }else{
-                requestLocationPermission()
-            }
-        }else {
-            if (hasLocationPermission()) {
-                startScan()
-            } else {
-                requestLocationPermission()
+            }else {
+                if (hasLocationPermission()) {
+                    startScan()
+                } else {
+                    requestLocationPermission()
+                }
             }
         }
     }
