@@ -2,7 +2,7 @@
 
 BLE Connector is an Android application designed to scan, connect, receive, and store data from Bluetooth Low Energy (BLE) devices. This application provides an easy-to-use interface for managing BLE connections and handling data efficiently.
 
-![Screenshot 2024-05-30 012735](https://github.com/lovepathak1224/BLE/assets/155883684/25e68d23-4e75-4fe3-87ca-2d22efd81cb9)
+[![View Documentation](Resource/Shots.png)](Resource/Shots.png)
 
 
 ## Features
